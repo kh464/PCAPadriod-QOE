@@ -25,6 +25,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 
@@ -39,6 +40,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.robolectric.shadows.ShadowContentResolver;
+import org.robolectric.annotation.Config;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -99,6 +101,7 @@ public class CaptureMarkerWriterTest {
     }
 
     @Test
+    @Config(sdk = Build.VERSION_CODES.P)
     public void testGetMarkerUriForContentUriWithDataPathUsesSameDirectory() {
         Context context = ApplicationProvider.getApplicationContext();
         File pcapFile = new File(tempFolder.getRoot(), "capture.pcap");
@@ -108,6 +111,18 @@ public class CaptureMarkerWriterTest {
 
         assertEquals(Uri.fromFile(new File(tempFolder.getRoot(), "capture.markers.json")),
                 CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcap"));
+    }
+
+    @Test
+    @Config(sdk = Build.VERSION_CODES.Q)
+    public void testGetMarkerUriForContentUriWithDataPathOnQReturnsNull() {
+        Context context = ApplicationProvider.getApplicationContext();
+        File pcapFile = new File(tempFolder.getRoot(), "capture.pcap");
+        ShadowContentResolver.registerProviderInternal(DATA_PATH_AUTHORITY, new DataPathProvider(pcapFile.getAbsolutePath()));
+
+        Uri pcapUri = Uri.parse("content://" + DATA_PATH_AUTHORITY + "/capture.pcap");
+
+        assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcap"));
     }
 
     @Test

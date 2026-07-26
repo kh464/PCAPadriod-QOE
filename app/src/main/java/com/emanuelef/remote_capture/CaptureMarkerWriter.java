@@ -25,6 +25,7 @@ import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.MediaStore;
 
 import com.google.gson.Gson;
@@ -92,10 +93,12 @@ public final class CaptureMarkerWriter {
         if ((relativePath != null) && !relativePath.isEmpty())
             return getMarkerUriInRelativePath(resolver, relativePath, markerName);
 
-        String dataPath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.DATA);
-        if ((dataPath != null) && !dataPath.isEmpty()) {
-            File parentDir = new File(dataPath).getParentFile();
-            return (parentDir != null) ? Uri.fromFile(new File(parentDir, markerName)) : null;
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            String dataPath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.DATA);
+            if ((dataPath != null) && !dataPath.isEmpty()) {
+                File parentDir = new File(dataPath).getParentFile();
+                return (parentDir != null) ? Uri.fromFile(new File(parentDir, markerName)) : null;
+            }
         }
 
         return null;
