@@ -624,4 +624,7 @@
     <string name="local_network_permission_required">The \"Nearby devices\" permission is required to capture packets</string>
     <string name="grant_permission_action">Grant</string>
     <string name="open_settings">Open settings</string>
+    <string name="overlay_permission_notice">PCAPdroid needs the display-over-other-apps permission to show manual network quality marker buttons while you use other apps. The capture can continue without markers.</string>
+    <string name="continue_without_markers">Continue without markers</string>
+    <string name="marker_write_failed">Could not save marker</string>
 </resources>

@@ -52,6 +52,7 @@ import androidx.viewpager2.widget.ViewPager2;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.os.SystemClock;
 import android.view.KeyEvent;
 import android.view.Menu;
@@ -881,6 +882,39 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
         if(showRemoteServerAlert())
             return;
 
+        if(maybeShowMarkerOverlayPermissionPrompt())
+            return;
+
+        continueStartCapture();
+    }
+
+    private boolean maybeShowMarkerOverlayPermissionPrompt() {
+        if((Build.VERSION.SDK_INT < Build.VERSION_CODES.M) ||
+                (Prefs.getDumpMode(mPrefs) != Prefs.DumpMode.PCAP_FILE) ||
+                Settings.canDrawOverlays(this))
+            return false;
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.permission_required)
+                .setMessage(R.string.overlay_permission_notice)
+                .setPositiveButton(R.string.open_settings, (d, whichButton) -> {
+                    Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + getPackageName()));
+                    try {
+                        startActivity(intent);
+                    } catch (ActivityNotFoundException e) {
+                        Utils.openAppSettings(this, getPackageName());
+                    }
+                })
+                .setNegativeButton(R.string.continue_without_markers, (d, whichButton) -> continueStartCapture())
+                .setOnCancelListener(d -> continueStartCapture())
+                .show();
+
+        dialog.setCanceledOnTouchOutside(false);
+        return true;
+    }
+
+    private void continueStartCapture() {
         if(Prefs.getTlsDecryptionEnabled(mPrefs) && MitmAddon.isSupportedTarget()) {
             if (MitmAddon.needsSetup(this)) {
                 Intent intent = new Intent(this, MitmSetupWizard.class);
