@@ -97,6 +97,11 @@ public final class CaptureMarkerWriter {
     }
 
     public static boolean appendMarker(Context context, Uri markerUri, long timestamp, String label) {
+        if (ContentResolver.SCHEME_FILE.equals(markerUri.getScheme())) {
+            String path = markerUri.getPath();
+            return (path != null) && appendMarker(new File(path), timestamp, label);
+        }
+
         ContentResolver resolver = context.getContentResolver();
 
         try {

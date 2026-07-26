@@ -181,6 +181,22 @@ public class CaptureMarkerWriterTest {
     }
 
     @Test
+    public void testAppendMarkerFileUriCreatesMissingFile() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        File markerFile = new File(tempFolder.getRoot(), "missing/capture.markers.json");
+        Uri markerUri = Uri.fromFile(markerFile);
+
+        assertTrue(CaptureMarkerWriter.appendMarker(context, markerUri, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+
+        String json = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
+        JsonArray markers = parseArray(json);
+
+        assertEquals(1, markers.size());
+        assertEquals(1234L, markers.get(0).getAsJsonObject().get("timestamp").getAsLong());
+        assertEquals(CaptureMarkerWriter.LABEL_OPEN, markers.get(0).getAsJsonObject().get("label").getAsString());
+    }
+
+    @Test
     public void testAppendMarkerUriDoesNotOverwriteMalformedJson() throws Exception {
         Context context = ApplicationProvider.getApplicationContext();
         File markerFile = tempFolder.newFile("capture.markers.json");
