@@ -143,6 +143,7 @@ public class CaptureService extends VpnService implements Runnable {
     private HttpLog mHttpLog;
     private Uri mPcapUri;
     private String mPcapFname;
+    private boolean mMarkerOverlayStarted;
     private NotificationCompat.Builder mStatusBuilder;
     private NotificationCompat.Builder mMalwareBuilder;
     private long mMonitoredNetwork;
@@ -625,6 +626,7 @@ public class CaptureService extends VpnService implements Runnable {
         mQueueFull = false;
         mCaptureThread = new Thread(this, "PacketCapture");
         mCaptureThread.start();
+        startMarkerOverlayIfNeeded();
 
         // If the service is killed (e.g. due to low memory), then restart it with a NULL intent
         return START_STICKY;
@@ -661,6 +663,7 @@ public class CaptureService extends VpnService implements Runnable {
             mNewAppsInstallReceiver = null;
         }
 
+        stopMarkerOverlay();
         super.onDestroy();
     }
 
@@ -916,6 +919,7 @@ public class CaptureService extends VpnService implements Runnable {
         }
         mDumperThread = null;
         mDumper = null;
+        stopMarkerOverlay();
 
         if(mMitmReceiver != null) {
             try {
@@ -925,6 +929,43 @@ public class CaptureService extends VpnService implements Runnable {
             }
             mMitmReceiver = null;
         }
+    }
+
+    private void startMarkerOverlayIfNeeded() {
+        mMarkerOverlayStarted = false;
+
+        if ((mSettings == null) || (mSettings.dump_mode != Prefs.DumpMode.PCAP_FILE))
+            return;
+        if ((mPcapUri == null) || (mPcapFname == null) || mPcapFname.trim().isEmpty())
+            return;
+        if (!CaptureMarkerOverlayService.canDrawOverlays(this))
+            return;
+
+        Uri markerUri = CaptureMarkerWriter.getMarkerUri(this, mPcapUri, mPcapFname);
+        if (markerUri == null) {
+            Log.w(TAG, "Could not create marker URI, marker overlay disabled");
+            return;
+        }
+
+        try {
+            startService(CaptureMarkerOverlayService.buildIntent(this, markerUri));
+            mMarkerOverlayStarted = true;
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Could not start marker overlay: " + e.getMessage());
+        }
+    }
+
+    private void stopMarkerOverlay() {
+        if (!mMarkerOverlayStarted)
+            return;
+
+        try {
+            stopService(new Intent(this, CaptureMarkerOverlayService.class));
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Could not stop marker overlay: " + e.getMessage());
+        }
+
+        mMarkerOverlayStarted = false;
     }
 
     /* Stops the running Service. The SERVICE_STATUS_STOPPED notification is sent asynchronously

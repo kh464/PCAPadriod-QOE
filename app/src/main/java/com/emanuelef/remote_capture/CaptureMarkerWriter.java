@@ -20,8 +20,12 @@
 package com.emanuelef.remote_capture;
 
 import android.content.ContentResolver;
+import android.content.ContentUris;
+import android.content.ContentValues;
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
+import android.provider.MediaStore;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -60,6 +64,71 @@ public final class CaptureMarkerWriter {
             return captureFileName.substring(0, captureFileName.length() - ".pcapng".length()) + MARKER_SUFFIX;
 
         return captureFileName + MARKER_SUFFIX;
+    }
+
+    public static Uri getMarkerUri(Context context, Uri pcapUri, String pcapFname) {
+        try {
+            String markerName = getMarkerFileName(pcapFname);
+
+            if (ContentResolver.SCHEME_FILE.equals(pcapUri.getScheme())) {
+                String path = pcapUri.getPath();
+                if ((path == null) || path.isEmpty())
+                    return null;
+
+                File parentDir = new File(path).getParentFile();
+                return (parentDir != null) ? Uri.fromFile(new File(parentDir, markerName)) : null;
+            }
+
+            Uri samePathUri = getMarkerUriInSameRelativePath(context, pcapUri, markerName);
+            return (samePathUri != null) ? samePathUri : Utils.getDownloadsUri(context, markerName);
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static Uri getMarkerUriInSameRelativePath(Context context, Uri pcapUri, String markerName) {
+        ContentResolver resolver = context.getContentResolver();
+        String relativePath;
+
+        try (Cursor cursor = resolver.query(pcapUri,
+                new String[]{MediaStore.MediaColumns.RELATIVE_PATH}, null, null, null)) {
+            if ((cursor == null) || !cursor.moveToFirst())
+                return null;
+
+            int index = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH);
+            if (index < 0)
+                return null;
+
+            relativePath = cursor.getString(index);
+            if ((relativePath == null) || relativePath.isEmpty())
+                return null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+
+        Uri externalUri = MediaStore.Files.getContentUri("external");
+        String selection = MediaStore.MediaColumns.RELATIVE_PATH + "=? AND " +
+                MediaStore.MediaColumns.DISPLAY_NAME + "=?";
+        String[] selectionArgs = new String[]{relativePath, markerName};
+
+        try (Cursor cursor = resolver.query(externalUri,
+                new String[]{MediaStore.MediaColumns._ID}, selection, selectionArgs, null)) {
+            if ((cursor != null) && cursor.moveToFirst()) {
+                long id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.MediaColumns._ID));
+                return ContentUris.withAppendedId(externalUri, id);
+            }
+        } catch (RuntimeException e) {
+            return null;
+        }
+
+        try {
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.MediaColumns.DISPLAY_NAME, markerName);
+            values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath);
+            return resolver.insert(externalUri, values);
+        } catch (RuntimeException e) {
+            return null;
+        }
     }
 
     public static String appendMarkerJson(String existingJson, long timestamp, String label) {

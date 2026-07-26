@@ -45,6 +45,7 @@ import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class CaptureMarkerWriterTest {
@@ -64,6 +65,23 @@ public class CaptureMarkerWriterTest {
         assertEquals("capture.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.PCAP"));
         assertEquals("capture.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.PCAPNG"));
         assertEquals("capture.dump.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.dump"));
+    }
+
+    @Test
+    public void testGetMarkerUriForFileUriUsesSameDirectory() {
+        Context context = ApplicationProvider.getApplicationContext();
+        File pcapFile = new File(tempFolder.getRoot(), "capture.pcapng");
+
+        Uri markerUri = CaptureMarkerWriter.getMarkerUri(context, Uri.fromFile(pcapFile), "capture.pcapng");
+
+        assertEquals(Uri.fromFile(new File(tempFolder.getRoot(), "capture.markers.json")), markerUri);
+    }
+
+    @Test
+    public void testGetMarkerUriForFileUriWithoutPathReturnsNull() {
+        Context context = ApplicationProvider.getApplicationContext();
+
+        assertNull(CaptureMarkerWriter.getMarkerUri(context, Uri.parse("file:"), "capture.pcap"));
     }
 
     @Test
