@@ -44,6 +44,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 
 public final class CaptureMarkerWriter {
@@ -88,10 +89,13 @@ public final class CaptureMarkerWriter {
 
     private static Uri getMarkerUriInSameDirectory(Context context, Uri pcapUri, String markerName) {
         ContentResolver resolver = context.getContentResolver();
-        String relativePath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.RELATIVE_PATH);
 
-        if ((relativePath != null) && !relativePath.isEmpty())
-            return getMarkerUriInRelativePath(resolver, relativePath, markerName);
+        if (isExternalMediaStoreUri(pcapUri)) {
+            String relativePath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.RELATIVE_PATH);
+
+            if ((relativePath != null) && !relativePath.isEmpty())
+                return getMarkerUriInRelativePath(resolver, relativePath, markerName);
+        }
 
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             String dataPath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.DATA);
@@ -102,6 +106,20 @@ public final class CaptureMarkerWriter {
         }
 
         return null;
+    }
+
+    private static boolean isExternalMediaStoreUri(Uri uri) {
+        if (!ContentResolver.SCHEME_CONTENT.equals(uri.getScheme()) || !"media".equals(uri.getAuthority()))
+            return false;
+
+        List<String> segments = uri.getPathSegments();
+        if (segments.size() < 2 || !"external".equals(segments.get(0)))
+            return false;
+
+        String collection = segments.get(1);
+        return "file".equals(collection) || "images".equals(collection) ||
+                "video".equals(collection) || "audio".equals(collection) ||
+                "downloads".equals(collection);
     }
 
     private static String queryStringColumn(ContentResolver resolver, Uri uri, String column) {
@@ -186,6 +204,9 @@ public final class CaptureMarkerWriter {
 
         try {
             String existingJson = readUtf8(resolver, markerUri);
+            if (existingJson == null)
+                return false;
+
             String updatedJson = appendMarkerJson(existingJson, timestamp, label);
 
             try (OutputStream out = resolver.openOutputStream(markerUri, "rwt")) {
@@ -212,8 +233,7 @@ public final class CaptureMarkerWriter {
             if (in == null)
                 return null;
 
-            String content = readUtf8(in);
-            return content.isEmpty() ? null : content;
+            return readUtf8(in);
         }
     }
 

@@ -54,7 +54,9 @@ import static org.junit.Assert.assertTrue;
 
 public class CaptureMarkerWriterTest {
     private static final String FAILING_READ_AUTHORITY = "com.emanuelef.remote_capture.failing_read_marker";
+    private static final String EMPTY_READ_AUTHORITY = "com.emanuelef.remote_capture.empty_read_marker";
     private static final String NO_RELATIVE_PATH_AUTHORITY = "com.emanuelef.remote_capture.no_relative_path_marker";
+    private static final String RELATIVE_PATH_AUTHORITY = "com.emanuelef.remote_capture.relative_path_marker";
     private static final String DATA_PATH_AUTHORITY = "com.emanuelef.remote_capture.data_path_marker";
 
     @Rule
@@ -98,6 +100,19 @@ public class CaptureMarkerWriterTest {
         Uri pcapUri = Uri.parse("content://" + NO_RELATIVE_PATH_AUTHORITY + "/capture.pcapng");
 
         assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
+    }
+
+    @Test
+    @Config(sdk = Build.VERSION_CODES.Q)
+    public void testGetMarkerUriForNonMediaStoreUriDoesNotQueryRelativePath() {
+        Context context = ApplicationProvider.getApplicationContext();
+        RelativePathProvider provider = new RelativePathProvider();
+        ShadowContentResolver.registerProviderInternal(RELATIVE_PATH_AUTHORITY, provider);
+
+        Uri pcapUri = Uri.parse("content://" + RELATIVE_PATH_AUTHORITY + "/capture.pcapng");
+
+        assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
+        assertFalse(provider.wasQueried());
     }
 
     @Test
@@ -281,6 +296,18 @@ public class CaptureMarkerWriterTest {
         assertFalse(provider.wasOutputOpened());
     }
 
+    @Test
+    public void testAppendMarkerUriReturnsFalseWithoutWritingWhenContentIsEmpty() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        EmptyReadProvider provider = new EmptyReadProvider(tempFolder.newFile("empty.markers.json"));
+        ShadowContentResolver.registerProviderInternal(EMPTY_READ_AUTHORITY, provider);
+
+        Uri markerUri = Uri.parse("content://" + EMPTY_READ_AUTHORITY + "/capture.markers.json");
+
+        assertFalse(CaptureMarkerWriter.appendMarker(context, markerUri, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+        assertFalse(provider.wasOutputOpened());
+    }
+
     public static class FailingReadProvider extends ContentProvider {
         private boolean mOutputOpened;
 
@@ -328,6 +355,59 @@ public class CaptureMarkerWriterTest {
         }
     }
 
+    public static class EmptyReadProvider extends ContentProvider {
+        private final File mFile;
+        private boolean mOutputOpened;
+
+        public EmptyReadProvider(File file) {
+            mFile = file;
+        }
+
+        @Override
+        public boolean onCreate() {
+            return true;
+        }
+
+        @Override
+        public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+            if (mode.contains("w")) {
+                mOutputOpened = true;
+                throw new FileNotFoundException("write should not be attempted");
+            }
+
+            return ParcelFileDescriptor.open(mFile, ParcelFileDescriptor.MODE_READ_ONLY);
+        }
+
+        public boolean wasOutputOpened() {
+            return mOutputOpened;
+        }
+
+        @Override
+        public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+            return null;
+        }
+
+        @Override
+        public String getType(Uri uri) {
+            return null;
+        }
+
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            return null;
+        }
+
+        @Override
+        public int delete(Uri uri, String selection, String[] selectionArgs) {
+            return 0;
+        }
+
+        @Override
+        public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+            return 0;
+        }
+    }
+
     public static class NoRelativePathProvider extends ContentProvider {
         @Override
         public boolean onCreate() {
@@ -339,6 +419,47 @@ public class CaptureMarkerWriterTest {
             MatrixCursor cursor = new MatrixCursor(new String[]{"not_relative_path"});
             cursor.addRow(new Object[]{"Downloads/PCAPdroid/"});
             return cursor;
+        }
+
+        @Override
+        public String getType(Uri uri) {
+            return null;
+        }
+
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            return null;
+        }
+
+        @Override
+        public int delete(Uri uri, String selection, String[] selectionArgs) {
+            return 0;
+        }
+
+        @Override
+        public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+            return 0;
+        }
+    }
+
+    public static class RelativePathProvider extends ContentProvider {
+        private boolean mQueried;
+
+        @Override
+        public boolean onCreate() {
+            return true;
+        }
+
+        @Override
+        public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+            mQueried = true;
+            MatrixCursor cursor = new MatrixCursor(new String[]{MediaStore.MediaColumns.RELATIVE_PATH});
+            cursor.addRow(new Object[]{"Downloads/PCAPdroid/"});
+            return cursor;
+        }
+
+        public boolean wasQueried() {
+            return mQueried;
         }
 
         @Override
