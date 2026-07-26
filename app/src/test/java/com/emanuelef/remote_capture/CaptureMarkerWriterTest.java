@@ -58,6 +58,7 @@ public class CaptureMarkerWriterTest {
     private static final String NO_RELATIVE_PATH_AUTHORITY = "com.emanuelef.remote_capture.no_relative_path_marker";
     private static final String RELATIVE_PATH_AUTHORITY = "com.emanuelef.remote_capture.relative_path_marker";
     private static final String DATA_PATH_AUTHORITY = "com.emanuelef.remote_capture.data_path_marker";
+    private static final String MEDIA_AUTHORITY = "media";
 
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -113,6 +114,36 @@ public class CaptureMarkerWriterTest {
 
         assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
         assertFalse(provider.wasQueried());
+    }
+
+    @Test
+    @Config(sdk = Build.VERSION_CODES.Q)
+    public void testGetMarkerUriInitializesInsertedMediaStoreMarker() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        File markerFile = tempFolder.newFile("inserted.markers.json");
+        MediaStoreMarkerProvider provider = new MediaStoreMarkerProvider(markerFile);
+        ShadowContentResolver.registerProviderInternal(MEDIA_AUTHORITY, provider);
+
+        Uri pcapUri = Uri.parse("content://media/external/file/123");
+
+        assertEquals(Uri.parse("content://media/external/file/456"),
+                CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
+        assertEquals("[]", new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8));
+        assertFalse(provider.wasDeleted());
+    }
+
+    @Test
+    @Config(sdk = Build.VERSION_CODES.Q)
+    public void testGetMarkerUriDeletesInsertedMediaStoreMarkerWhenInitializationFails() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        MediaStoreMarkerProvider provider =
+                new MediaStoreMarkerProvider(tempFolder.newFile("failed-insert.markers.json"), true);
+        ShadowContentResolver.registerProviderInternal(MEDIA_AUTHORITY, provider);
+
+        Uri pcapUri = Uri.parse("content://media/external/file/123");
+
+        assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
+        assertTrue(provider.wasDeleted());
     }
 
     @Test
@@ -475,6 +506,75 @@ public class CaptureMarkerWriterTest {
         @Override
         public int delete(Uri uri, String selection, String[] selectionArgs) {
             return 0;
+        }
+
+        @Override
+        public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+            return 0;
+        }
+    }
+
+    public static class MediaStoreMarkerProvider extends ContentProvider {
+        private final File mMarkerFile;
+        private final boolean mFailWrite;
+        private boolean mDeleted;
+
+        public MediaStoreMarkerProvider(File markerFile) {
+            this(markerFile, false);
+        }
+
+        public MediaStoreMarkerProvider(File markerFile, boolean failWrite) {
+            mMarkerFile = markerFile;
+            mFailWrite = failWrite;
+        }
+
+        @Override
+        public boolean onCreate() {
+            return true;
+        }
+
+        @Override
+        public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+            if ("123".equals(uri.getLastPathSegment())) {
+                MatrixCursor cursor = new MatrixCursor(new String[]{MediaStore.MediaColumns.RELATIVE_PATH});
+                cursor.addRow(new Object[]{"Downloads/PCAPdroid/"});
+                return cursor;
+            }
+
+            return new MatrixCursor(new String[]{MediaStore.MediaColumns._ID});
+        }
+
+        @Override
+        public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+            if (!"456".equals(uri.getLastPathSegment()) || !mode.contains("w"))
+                throw new FileNotFoundException("unexpected openFile: " + uri + " " + mode);
+            if (mFailWrite)
+                throw new FileNotFoundException("write failed");
+
+            return ParcelFileDescriptor.open(mMarkerFile,
+                    ParcelFileDescriptor.MODE_WRITE_ONLY | ParcelFileDescriptor.MODE_TRUNCATE);
+        }
+
+        @Override
+        public String getType(Uri uri) {
+            return null;
+        }
+
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            assertEquals("capture.markers.json", values.getAsString(MediaStore.MediaColumns.DISPLAY_NAME));
+            assertEquals("Downloads/PCAPdroid/", values.getAsString(MediaStore.MediaColumns.RELATIVE_PATH));
+            return Uri.parse("content://media/external/file/456");
+        }
+
+        @Override
+        public int delete(Uri uri, String selection, String[] selectionArgs) {
+            mDeleted = true;
+            return 1;
+        }
+
+        public boolean wasDeleted() {
+            return mDeleted;
         }
 
         @Override

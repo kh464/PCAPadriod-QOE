@@ -154,9 +154,33 @@ public final class CaptureMarkerWriter {
             ContentValues values = new ContentValues();
             values.put(MediaStore.MediaColumns.DISPLAY_NAME, markerName);
             values.put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath);
-            return resolver.insert(externalUri, values);
+            Uri markerUri = resolver.insert(externalUri, values);
+            if (markerUri == null)
+                return null;
+
+            if (initializeNewContentMarker(resolver, markerUri))
+                return markerUri;
+
+            try {
+                resolver.delete(markerUri, null, null);
+            } catch (RuntimeException ignored) {
+            }
+
+            return null;
         } catch (RuntimeException e) {
             return null;
+        }
+    }
+
+    private static boolean initializeNewContentMarker(ContentResolver resolver, Uri markerUri) {
+        try (OutputStream out = resolver.openOutputStream(markerUri, "rwt")) {
+            if (out == null)
+                return false;
+
+            out.write("[]".getBytes(StandardCharsets.UTF_8));
+            return true;
+        } catch (IOException | RuntimeException e) {
+            return false;
         }
     }
 
