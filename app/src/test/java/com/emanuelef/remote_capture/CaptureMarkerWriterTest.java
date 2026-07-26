@@ -19,6 +19,11 @@
 
 package com.emanuelef.remote_capture;
 
+import android.content.Context;
+import android.net.Uri;
+
+import androidx.test.core.app.ApplicationProvider;
+
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -143,6 +148,39 @@ public class CaptureMarkerWriterTest {
         Files.write(markerFile.toPath(), malformedJson.getBytes(StandardCharsets.UTF_8));
 
         assertFalse(CaptureMarkerWriter.appendMarker(markerFile, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+
+        String content = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
+        assertEquals(malformedJson, content);
+    }
+
+    @Test
+    public void testAppendMarkerAppendsToUri() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        File markerFile = tempFolder.newFile("capture.markers.json");
+        Uri markerUri = Uri.fromFile(markerFile);
+
+        assertTrue(CaptureMarkerWriter.appendMarker(context, markerUri, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+        assertTrue(CaptureMarkerWriter.appendMarker(context, markerUri, 2345L, CaptureMarkerWriter.LABEL_CLOSE));
+
+        String json = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
+        JsonArray markers = parseArray(json);
+
+        assertEquals(2, markers.size());
+        assertEquals(1234L, markers.get(0).getAsJsonObject().get("timestamp").getAsLong());
+        assertEquals(CaptureMarkerWriter.LABEL_OPEN, markers.get(0).getAsJsonObject().get("label").getAsString());
+        assertEquals(2345L, markers.get(1).getAsJsonObject().get("timestamp").getAsLong());
+        assertEquals(CaptureMarkerWriter.LABEL_CLOSE, markers.get(1).getAsJsonObject().get("label").getAsString());
+    }
+
+    @Test
+    public void testAppendMarkerUriDoesNotOverwriteMalformedJson() throws Exception {
+        Context context = ApplicationProvider.getApplicationContext();
+        File markerFile = tempFolder.newFile("capture.markers.json");
+        Uri markerUri = Uri.fromFile(markerFile);
+        String malformedJson = "[";
+        Files.write(markerFile.toPath(), malformedJson.getBytes(StandardCharsets.UTF_8));
+
+        assertFalse(CaptureMarkerWriter.appendMarker(context, markerUri, 1234L, CaptureMarkerWriter.LABEL_OPEN));
 
         String content = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
         assertEquals(malformedJson, content);

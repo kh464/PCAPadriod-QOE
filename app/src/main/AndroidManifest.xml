@@ -152,6 +152,9 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="waits for the termination of the active VpnService"/>
         </service>
+        <service
+            android:name=".CaptureMarkerOverlayService"
+            android:exported="false" />
 
         <receiver android:name="com.emanuelef.remote_capture.ActionReceiver" />
 

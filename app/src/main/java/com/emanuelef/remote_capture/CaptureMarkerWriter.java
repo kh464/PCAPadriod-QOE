@@ -19,6 +19,10 @@
 
 package com.emanuelef.remote_capture;
 
+import android.content.ContentResolver;
+import android.content.Context;
+import android.net.Uri;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -31,6 +35,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -90,9 +96,46 @@ public final class CaptureMarkerWriter {
         }
     }
 
+    public static boolean appendMarker(Context context, Uri markerUri, long timestamp, String label) {
+        ContentResolver resolver = context.getContentResolver();
+
+        try {
+            String existingJson = readUtf8(resolver, markerUri);
+            String updatedJson = appendMarkerJson(existingJson, timestamp, label);
+
+            try (OutputStream out = resolver.openOutputStream(markerUri, "rwt")) {
+                if (out == null)
+                    return false;
+
+                out.write(updatedJson.getBytes(StandardCharsets.UTF_8));
+            }
+
+            return true;
+        } catch (IOException | RuntimeException e) {
+            return false;
+        }
+    }
+
     private static String readUtf8(File file) throws IOException {
-        try (FileInputStream in = new FileInputStream(file);
-             ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+        try (FileInputStream in = new FileInputStream(file)) {
+            return readUtf8(in);
+        }
+    }
+
+    private static String readUtf8(ContentResolver resolver, Uri markerUri) throws IOException {
+        try (InputStream in = resolver.openInputStream(markerUri)) {
+            if (in == null)
+                return null;
+
+            String content = readUtf8(in);
+            return content.isEmpty() ? null : content;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    private static String readUtf8(InputStream in) throws IOException {
+        try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[4096];
             int read;
 
