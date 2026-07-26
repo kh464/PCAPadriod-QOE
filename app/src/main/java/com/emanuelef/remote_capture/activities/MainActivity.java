@@ -933,7 +933,7 @@ public class MainActivity extends BaseActivity implements NavigationView.OnNavig
                         })
                         .setNegativeButton(R.string.cancel_action, (dialog, whichButton) -> {
                             MitmAddon.ignoreNewVersion(this);
-                            startCapture();
+                            continueStartCapture();
                         })
                         .show();
 
