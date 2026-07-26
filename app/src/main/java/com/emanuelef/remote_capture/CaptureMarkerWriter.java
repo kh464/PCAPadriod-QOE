@@ -33,6 +33,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 public final class CaptureMarkerWriter {
     public static final String LABEL_OPEN = "开";
@@ -44,10 +45,12 @@ public final class CaptureMarkerWriter {
     private CaptureMarkerWriter() {}
 
     public static String getMarkerFileName(String captureFileName) {
-        if (captureFileName.endsWith(".pcap"))
+        String lowerName = captureFileName.toLowerCase(Locale.ROOT);
+
+        if (lowerName.endsWith(".pcap"))
             return captureFileName.substring(0, captureFileName.length() - ".pcap".length()) + MARKER_SUFFIX;
 
-        if (captureFileName.endsWith(".pcapng"))
+        if (lowerName.endsWith(".pcapng"))
             return captureFileName.substring(0, captureFileName.length() - ".pcapng".length()) + MARKER_SUFFIX;
 
         return captureFileName + MARKER_SUFFIX;
@@ -101,6 +104,11 @@ public final class CaptureMarkerWriter {
     }
 
     private static void writeUtf8(File file, String content) throws IOException {
+        File parent = file.getParentFile();
+
+        if ((parent != null) && !parent.exists() && !parent.mkdirs() && !parent.exists())
+            throw new IOException("Could not create parent directory: " + parent);
+
         try (OutputStreamWriter writer = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8)) {
             writer.write(content);
         }

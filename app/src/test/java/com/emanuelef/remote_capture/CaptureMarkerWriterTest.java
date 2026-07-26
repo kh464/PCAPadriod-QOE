@@ -24,7 +24,9 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
 
 import java.io.File;
 import java.nio.charset.StandardCharsets;
@@ -35,6 +37,9 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class CaptureMarkerWriterTest {
+    @Rule
+    public TemporaryFolder tempFolder = new TemporaryFolder();
+
     private JsonArray parseArray(String json) {
         return JsonParser.parseString(json).getAsJsonArray();
     }
@@ -43,6 +48,8 @@ public class CaptureMarkerWriterTest {
     public void testGetMarkerFileName() {
         assertEquals("capture.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.pcap"));
         assertEquals("capture.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.pcapng"));
+        assertEquals("capture.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.PCAP"));
+        assertEquals("capture.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.PCAPNG"));
         assertEquals("capture.dump.markers.json", CaptureMarkerWriter.getMarkerFileName("capture.dump"));
     }
 
@@ -90,8 +97,7 @@ public class CaptureMarkerWriterTest {
 
     @Test
     public void testAppendMarkerCreatesAndUpdatesUtf8File() throws Exception {
-        File markerFile = File.createTempFile("capture", ".markers.json");
-        assertTrue(markerFile.delete());
+        File markerFile = new File(tempFolder.getRoot(), "capture.markers.json");
 
         assertTrue(CaptureMarkerWriter.appendMarker(markerFile, 1234L, CaptureMarkerWriter.LABEL_OPEN));
         assertTrue(CaptureMarkerWriter.appendMarker(markerFile, 2345L, CaptureMarkerWriter.LABEL_CLOSE));
@@ -107,13 +113,32 @@ public class CaptureMarkerWriterTest {
         assertEquals(CaptureMarkerWriter.LABEL_CLOSE, markers.get(1).getAsJsonObject().get("label").getAsString());
         assertTrue(json.contains(CaptureMarkerWriter.LABEL_OPEN));
         assertTrue(json.contains(CaptureMarkerWriter.LABEL_CLOSE));
+    }
 
-        assertTrue(markerFile.delete());
+    @Test
+    public void testAppendMarkerCreatesParentDirectory() throws Exception {
+        File markerFile = new File(tempFolder.getRoot(), "nested/capture.markers.json");
+
+        assertTrue(CaptureMarkerWriter.appendMarker(markerFile, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+
+        String json = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
+        JsonArray markers = parseArray(json);
+        assertEquals(1, markers.size());
+        assertEquals(CaptureMarkerWriter.LABEL_OPEN, markers.get(0).getAsJsonObject().get("label").getAsString());
+    }
+
+    @Test
+    public void testAppendMarkerReturnsFalseWhenParentCannotBeCreated() throws Exception {
+        File fileInsteadOfDir = tempFolder.newFile("not_a_directory");
+        File markerFile = new File(fileInsteadOfDir, "nested/capture.markers.json");
+
+        assertFalse(CaptureMarkerWriter.appendMarker(markerFile, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+        assertFalse(markerFile.exists());
     }
 
     @Test
     public void testAppendMarkerDoesNotOverwriteMalformedFile() throws Exception {
-        File markerFile = File.createTempFile("capture", ".markers.json");
+        File markerFile = tempFolder.newFile("capture.markers.json");
         String malformedJson = "[";
         Files.write(markerFile.toPath(), malformedJson.getBytes(StandardCharsets.UTF_8));
 
@@ -121,7 +146,5 @@ public class CaptureMarkerWriterTest {
 
         String content = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
         assertEquals(malformedJson, content);
-
-        assertTrue(markerFile.delete());
     }
 }
