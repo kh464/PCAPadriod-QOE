@@ -79,32 +79,41 @@ public final class CaptureMarkerWriter {
                 return (parentDir != null) ? Uri.fromFile(new File(parentDir, markerName)) : null;
             }
 
-            return getMarkerUriInSameRelativePath(context, pcapUri, markerName);
+            return getMarkerUriInSameDirectory(context, pcapUri, markerName);
         } catch (RuntimeException e) {
             return null;
         }
     }
 
-    private static Uri getMarkerUriInSameRelativePath(Context context, Uri pcapUri, String markerName) {
+    private static Uri getMarkerUriInSameDirectory(Context context, Uri pcapUri, String markerName) {
         ContentResolver resolver = context.getContentResolver();
-        String relativePath;
+        String relativePath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.RELATIVE_PATH);
 
-        try (Cursor cursor = resolver.query(pcapUri,
-                new String[]{MediaStore.MediaColumns.RELATIVE_PATH}, null, null, null)) {
+        if ((relativePath != null) && !relativePath.isEmpty())
+            return getMarkerUriInRelativePath(resolver, relativePath, markerName);
+
+        String dataPath = queryStringColumn(resolver, pcapUri, MediaStore.MediaColumns.DATA);
+        if ((dataPath != null) && !dataPath.isEmpty()) {
+            File parentDir = new File(dataPath).getParentFile();
+            return (parentDir != null) ? Uri.fromFile(new File(parentDir, markerName)) : null;
+        }
+
+        return null;
+    }
+
+    private static String queryStringColumn(ContentResolver resolver, Uri uri, String column) {
+        try (Cursor cursor = resolver.query(uri, new String[]{column}, null, null, null)) {
             if ((cursor == null) || !cursor.moveToFirst())
                 return null;
 
-            int index = cursor.getColumnIndex(MediaStore.MediaColumns.RELATIVE_PATH);
-            if (index < 0)
-                return null;
-
-            relativePath = cursor.getString(index);
-            if ((relativePath == null) || relativePath.isEmpty())
-                return null;
+            int index = cursor.getColumnIndex(column);
+            return (index >= 0) ? cursor.getString(index) : null;
         } catch (RuntimeException e) {
             return null;
         }
+    }
 
+    private static Uri getMarkerUriInRelativePath(ContentResolver resolver, String relativePath, String markerName) {
         Uri externalUri = MediaStore.Files.getContentUri("external");
         String selection = MediaStore.MediaColumns.RELATIVE_PATH + "=? AND " +
                 MediaStore.MediaColumns.DISPLAY_NAME + "=?";

@@ -26,6 +26,7 @@ import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
+import android.provider.MediaStore;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -52,6 +53,7 @@ import static org.junit.Assert.assertTrue;
 public class CaptureMarkerWriterTest {
     private static final String FAILING_READ_AUTHORITY = "com.emanuelef.remote_capture.failing_read_marker";
     private static final String NO_RELATIVE_PATH_AUTHORITY = "com.emanuelef.remote_capture.no_relative_path_marker";
+    private static final String DATA_PATH_AUTHORITY = "com.emanuelef.remote_capture.data_path_marker";
 
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -94,6 +96,18 @@ public class CaptureMarkerWriterTest {
         Uri pcapUri = Uri.parse("content://" + NO_RELATIVE_PATH_AUTHORITY + "/capture.pcapng");
 
         assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
+    }
+
+    @Test
+    public void testGetMarkerUriForContentUriWithDataPathUsesSameDirectory() {
+        Context context = ApplicationProvider.getApplicationContext();
+        File pcapFile = new File(tempFolder.getRoot(), "capture.pcap");
+        ShadowContentResolver.registerProviderInternal(DATA_PATH_AUTHORITY, new DataPathProvider(pcapFile.getAbsolutePath()));
+
+        Uri pcapUri = Uri.parse("content://" + DATA_PATH_AUTHORITY + "/capture.pcap");
+
+        assertEquals(Uri.fromFile(new File(tempFolder.getRoot(), "capture.markers.json")),
+                CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcap"));
     }
 
     @Test
@@ -309,6 +323,46 @@ public class CaptureMarkerWriterTest {
         public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
             MatrixCursor cursor = new MatrixCursor(new String[]{"not_relative_path"});
             cursor.addRow(new Object[]{"Downloads/PCAPdroid/"});
+            return cursor;
+        }
+
+        @Override
+        public String getType(Uri uri) {
+            return null;
+        }
+
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            return null;
+        }
+
+        @Override
+        public int delete(Uri uri, String selection, String[] selectionArgs) {
+            return 0;
+        }
+
+        @Override
+        public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+            return 0;
+        }
+    }
+
+    public static class DataPathProvider extends ContentProvider {
+        private final String mDataPath;
+
+        public DataPathProvider(String dataPath) {
+            mDataPath = dataPath;
+        }
+
+        @Override
+        public boolean onCreate() {
+            return true;
+        }
+
+        @Override
+        public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+            MatrixCursor cursor = new MatrixCursor(new String[]{MediaStore.MediaColumns.DATA});
+            cursor.addRow(new Object[]{mDataPath});
             return cursor;
         }
 
