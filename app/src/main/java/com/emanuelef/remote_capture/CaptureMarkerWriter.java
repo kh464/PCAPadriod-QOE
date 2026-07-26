@@ -129,8 +129,6 @@ public final class CaptureMarkerWriter {
 
             String content = readUtf8(in);
             return content.isEmpty() ? null : content;
-        } catch (IOException | RuntimeException e) {
-            return null;
         }
     }
 

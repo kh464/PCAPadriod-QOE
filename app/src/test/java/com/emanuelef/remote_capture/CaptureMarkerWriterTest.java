@@ -19,8 +19,12 @@
 
 package com.emanuelef.remote_capture;
 
+import android.content.ContentProvider;
+import android.content.ContentValues;
 import android.content.Context;
+import android.database.Cursor;
 import android.net.Uri;
+import android.os.ParcelFileDescriptor;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -32,8 +36,10 @@ import com.google.gson.JsonSyntaxException;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.robolectric.shadows.ShadowContentResolver;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
@@ -42,6 +48,8 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class CaptureMarkerWriterTest {
+    private static final String FAILING_READ_AUTHORITY = "com.emanuelef.remote_capture.failing_read_marker";
+
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
 
@@ -184,5 +192,64 @@ public class CaptureMarkerWriterTest {
 
         String content = new String(Files.readAllBytes(markerFile.toPath()), StandardCharsets.UTF_8);
         assertEquals(malformedJson, content);
+    }
+
+    @Test
+    public void testAppendMarkerUriReturnsFalseWithoutWritingWhenReadFails() {
+        Context context = ApplicationProvider.getApplicationContext();
+        FailingReadProvider provider = new FailingReadProvider();
+        ShadowContentResolver.registerProviderInternal(FAILING_READ_AUTHORITY, provider);
+
+        Uri markerUri = Uri.parse("content://" + FAILING_READ_AUTHORITY + "/capture.markers.json");
+
+        assertFalse(CaptureMarkerWriter.appendMarker(context, markerUri, 1234L, CaptureMarkerWriter.LABEL_OPEN));
+        assertFalse(provider.wasOutputOpened());
+    }
+
+    public static class FailingReadProvider extends ContentProvider {
+        private boolean mOutputOpened;
+
+        @Override
+        public boolean onCreate() {
+            return true;
+        }
+
+        @Override
+        public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+            if (mode.contains("r") && !mode.contains("w"))
+                throw new FileNotFoundException("read failed");
+
+            mOutputOpened = true;
+            throw new FileNotFoundException("write should not be attempted");
+        }
+
+        public boolean wasOutputOpened() {
+            return mOutputOpened;
+        }
+
+        @Override
+        public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+            return null;
+        }
+
+        @Override
+        public String getType(Uri uri) {
+            return null;
+        }
+
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            return null;
+        }
+
+        @Override
+        public int delete(Uri uri, String selection, String[] selectionArgs) {
+            return 0;
+        }
+
+        @Override
+        public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+            return 0;
+        }
     }
 }

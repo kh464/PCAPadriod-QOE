@@ -185,6 +185,9 @@ public class CaptureMarkerOverlayService extends Service {
         public boolean onTouch(View view, MotionEvent event) {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
+                    if (mLayoutParams == null)
+                        return false;
+
                     mInitialX = mLayoutParams.x;
                     mInitialY = mLayoutParams.y;
                     mInitialTouchX = event.getRawX();
@@ -201,7 +204,9 @@ public class CaptureMarkerOverlayService extends Service {
                     if (mDragging) {
                         mLayoutParams.x = mInitialX + dx;
                         mLayoutParams.y = mInitialY + dy;
-                        mWindowManager.updateViewLayout(view, mLayoutParams);
+
+                        if ((mWindowManager != null) && (mOverlayView != null))
+                            mWindowManager.updateViewLayout(mOverlayView, mLayoutParams);
                     }
 
                     return true;
