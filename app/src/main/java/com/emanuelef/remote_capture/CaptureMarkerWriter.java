@@ -79,8 +79,7 @@ public final class CaptureMarkerWriter {
                 return (parentDir != null) ? Uri.fromFile(new File(parentDir, markerName)) : null;
             }
 
-            Uri samePathUri = getMarkerUriInSameRelativePath(context, pcapUri, markerName);
-            return (samePathUri != null) ? samePathUri : Utils.getDownloadsUri(context, markerName);
+            return getMarkerUriInSameRelativePath(context, pcapUri, markerName);
         } catch (RuntimeException e) {
             return null;
         }

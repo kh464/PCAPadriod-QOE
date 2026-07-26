@@ -626,7 +626,6 @@ public class CaptureService extends VpnService implements Runnable {
         mQueueFull = false;
         mCaptureThread = new Thread(this, "PacketCapture");
         mCaptureThread.start();
-        startMarkerOverlayIfNeeded();
 
         // If the service is killed (e.g. due to low memory), then restart it with a NULL intent
         return START_STICKY;
@@ -932,8 +931,8 @@ public class CaptureService extends VpnService implements Runnable {
     }
 
     private void startMarkerOverlayIfNeeded() {
-        mMarkerOverlayStarted = false;
-
+        if (mMarkerOverlayStarted)
+            return;
         if ((mSettings == null) || (mSettings.dump_mode != Prefs.DumpMode.PCAP_FILE))
             return;
         if ((mPcapUri == null) || (mPcapFname == null) || mPcapFname.trim().isEmpty())
@@ -1662,6 +1661,8 @@ public class CaptureService extends VpnService implements Runnable {
         serviceStatus.postValue(cur_status);
 
         if(cur_status == ServiceStatus.STARTED) {
+            startMarkerOverlayIfNeeded();
+
             if(mMalwareDetectionEnabled)
                 reloadMalwareWhitelist();
             if(mDecryptionList != null)

@@ -23,6 +23,7 @@ import android.content.ContentProvider;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
+import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.ParcelFileDescriptor;
 
@@ -50,6 +51,7 @@ import static org.junit.Assert.assertTrue;
 
 public class CaptureMarkerWriterTest {
     private static final String FAILING_READ_AUTHORITY = "com.emanuelef.remote_capture.failing_read_marker";
+    private static final String NO_RELATIVE_PATH_AUTHORITY = "com.emanuelef.remote_capture.no_relative_path_marker";
 
     @Rule
     public TemporaryFolder tempFolder = new TemporaryFolder();
@@ -82,6 +84,16 @@ public class CaptureMarkerWriterTest {
         Context context = ApplicationProvider.getApplicationContext();
 
         assertNull(CaptureMarkerWriter.getMarkerUri(context, Uri.parse("file:"), "capture.pcap"));
+    }
+
+    @Test
+    public void testGetMarkerUriForContentUriWithoutRelativePathReturnsNull() {
+        Context context = ApplicationProvider.getApplicationContext();
+        ShadowContentResolver.registerProviderInternal(NO_RELATIVE_PATH_AUTHORITY, new NoRelativePathProvider());
+
+        Uri pcapUri = Uri.parse("content://" + NO_RELATIVE_PATH_AUTHORITY + "/capture.pcapng");
+
+        assertNull(CaptureMarkerWriter.getMarkerUri(context, pcapUri, "capture.pcapng"));
     }
 
     @Test
@@ -264,6 +276,40 @@ public class CaptureMarkerWriterTest {
         @Override
         public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
             return null;
+        }
+
+        @Override
+        public String getType(Uri uri) {
+            return null;
+        }
+
+        @Override
+        public Uri insert(Uri uri, ContentValues values) {
+            return null;
+        }
+
+        @Override
+        public int delete(Uri uri, String selection, String[] selectionArgs) {
+            return 0;
+        }
+
+        @Override
+        public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) {
+            return 0;
+        }
+    }
+
+    public static class NoRelativePathProvider extends ContentProvider {
+        @Override
+        public boolean onCreate() {
+            return true;
+        }
+
+        @Override
+        public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+            MatrixCursor cursor = new MatrixCursor(new String[]{"not_relative_path"});
+            cursor.addRow(new Object[]{"Downloads/PCAPdroid/"});
+            return cursor;
         }
 
         @Override
