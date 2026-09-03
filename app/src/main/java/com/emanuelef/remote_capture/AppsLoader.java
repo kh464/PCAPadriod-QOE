@@ -20,8 +20,11 @@
 package com.emanuelef.remote_capture;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.Bundle;
 import android.util.ArrayMap;
 
@@ -55,6 +58,44 @@ public class AppsLoader implements LoaderManager.LoaderCallbacks<ArrayList<AppDe
         return this;
     }
 
+    private ArrayList<PackageInfo> getVisiblePackages(PackageManager pm) {
+        ArrayMap<String, PackageInfo> packages = new ArrayMap<>();
+
+        for (PackageInfo pkg : Utils.getInstalledPackages(pm, 0)) {
+            if ((pkg != null) && (pkg.applicationInfo != null))
+                packages.put(pkg.packageName, pkg);
+        }
+
+        Intent launcherIntent = new Intent(Intent.ACTION_MAIN);
+        launcherIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+
+        try {
+            List<ResolveInfo> launchers = pm.queryIntentActivities(launcherIntent, 0);
+
+            for (ResolveInfo resolveInfo : launchers) {
+                ActivityInfo activityInfo = resolveInfo.activityInfo;
+
+                if ((activityInfo == null) || (activityInfo.applicationInfo == null))
+                    continue;
+
+                String packageName = activityInfo.applicationInfo.packageName;
+
+                if (packages.containsKey(packageName))
+                    continue;
+
+                try {
+                    packages.put(packageName, Utils.getPackageInfo(pm, packageName, 0));
+                } catch (PackageManager.NameNotFoundException e) {
+                    Log.w(TAG, "Could not resolve launcher package " + packageName);
+                }
+            }
+        } catch (RuntimeException e) {
+            Log.w(TAG, "Could not query launcher packages: " + e.getMessage());
+        }
+
+        return new ArrayList<>(packages.values());
+    }
+
     @SuppressLint("QueryPermissionsNeeded")
     private ArrayList<AppDescriptor> asyncLoadAppsInfo() {
         final PackageManager pm = mContext.getPackageManager();
@@ -62,7 +103,7 @@ public class AppsLoader implements LoaderManager.LoaderCallbacks<ArrayList<AppDe
         ArrayMap<Integer, Integer> uid_to_pos = new ArrayMap<>();
 
         Log.d(TAG, "Loading APPs...");
-        List<PackageInfo> packs = Utils.getInstalledPackages(pm, 0);
+        List<PackageInfo> packs = getVisiblePackages(pm);
 
         String app_package = mContext.getApplicationContext().getPackageName();
 
